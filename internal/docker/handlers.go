@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"gocd/internal/discord"
 	"gocd/internal/labels"
 	"io"
 	"strings"
@@ -62,6 +63,14 @@ func UpdateContainers(token string) error {
 		defer mutex.Unlock()
 		listCopy := make([]*Container, len(list))
 		copy(listCopy, list)
+
+		// Prepare discord's message
+		message := fmt.Sprintf("Updating %d containers\n", len(list))
+		for _, c := range list {
+			message += fmt.Sprintf("- %s\n", c.Inspect.Name)
+		}
+
+		discord.SendMessage(message)
 
 		for _, c := range list {
 			logrus.Infof("Updating container %s", c.Inspect.Name)
