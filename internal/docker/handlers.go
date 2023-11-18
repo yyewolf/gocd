@@ -59,7 +59,6 @@ func UpdateContainers(token string) error {
 	go func() {
 		mutex.Lock()
 		list := containers[token]
-		fmt.Println(list)
 		defer mutex.Unlock()
 		listCopy := make([]*Container, len(list))
 		copy(listCopy, list)
@@ -67,7 +66,7 @@ func UpdateContainers(token string) error {
 		// Prepare discord's message
 		message := fmt.Sprintf("Updating %d containers\n", len(list))
 		for _, c := range list {
-			message += fmt.Sprintf("- %s\n", c.Inspect.Name)
+			message += fmt.Sprintf("- **%s**\n", c.Inspect.Name)
 		}
 
 		discord.SendMessage(message)
