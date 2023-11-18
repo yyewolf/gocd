@@ -64,7 +64,7 @@ func UpdateContainers(token string) error {
 		copy(listCopy, list)
 
 		// Prepare discord's message
-		message := fmt.Sprintf("Updating %d containers\n", len(list))
+		message := fmt.Sprintf("Updating %d container(s):\n", len(list))
 		for _, c := range list {
 			message += fmt.Sprintf("- **%s**\n", c.Inspect.Name)
 		}
