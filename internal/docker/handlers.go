@@ -85,7 +85,10 @@ func UpdateContainers(token string) error {
 			out, err := cli.ImagePull(context.Background(), c.Inspect.Config.Image, types.ImagePullOptions{})
 			if err != nil {
 				logrus.Error("Failed to update container at image pull: ", err)
-				continue
+			}
+
+			if out == nil {
+				out = io.NopCloser(strings.NewReader(""))
 			}
 
 			var buf [1024]byte
