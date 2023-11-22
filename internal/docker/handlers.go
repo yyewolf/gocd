@@ -66,7 +66,12 @@ func UpdateContainers(token string) error {
 		// Prepare discord's message
 		message := fmt.Sprintf("Updating %d container(s):\n", len(list))
 		for _, c := range list {
-			message += fmt.Sprintf("- **%s**\n", c.Inspect.Name)
+			lbl := labels.MapToGoCDLabels(c.Inspect.Config.Labels)
+			if lbl.Repo == "" {
+				message += fmt.Sprintf("- **%s**\n", c.Inspect.Name)
+			} else {
+				message += fmt.Sprintf("- **[%s](%s)**\n", c.Inspect.Name, lbl.Repo)
+			}
 		}
 
 		discord.SendMessage(message)
