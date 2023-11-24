@@ -90,9 +90,9 @@ func UpdateContainers(token string) error {
 				out = io.NopCloser(strings.NewReader(""))
 			}
 
-			var buf [1024]byte
-			io.ReadFull(out, buf[:])
-			out.Close()
+			var buf []byte
+			// read out till it's exhausted
+			buf, _ = io.ReadAll(out)
 
 			outStr := string(buf[:])
 
