@@ -20,6 +20,7 @@ type Container struct {
 	ID      string
 	Labels  labels.GoCDLabels
 	Inspect types.ContainerJSON
+	Error   error
 }
 
 var mutex sync.Mutex
@@ -64,19 +65,6 @@ func UpdateContainers(token string) error {
 		listCopy := make([]*Container, len(list))
 		copy(listCopy, list)
 
-		// Prepare discord's message
-		message := fmt.Sprintf("Updating %d container(s):\n", len(list))
-		for _, c := range list {
-			lbl := labels.MapToGoCDLabels(c.Inspect.Config.Labels)
-			if lbl.Repo == "" {
-				message += fmt.Sprintf("- **%s**\n", c.Inspect.Name)
-			} else {
-				message += fmt.Sprintf("- **[%s](%s)**\n", c.Inspect.Name, lbl.Repo)
-			}
-		}
-
-		discord.SendMessage(message)
-
 		for _, c := range list {
 			logrus.Infof("Updating container %s", c.Inspect.Name)
 
@@ -84,6 +72,7 @@ func UpdateContainers(token string) error {
 			out, err := cli.ImagePull(context.Background(), c.Inspect.Config.Image, types.ImagePullOptions{})
 			if err != nil {
 				logrus.Error("Failed to update container at image pull: ", err)
+				c.Error = err
 			}
 
 			if out == nil {
@@ -104,6 +93,7 @@ func UpdateContainers(token string) error {
 			})
 			if err != nil {
 				logrus.Error("Failed to update container at container stop: ", err)
+				c.Error = err
 			}
 
 			logrus.Debug("Removing container")
@@ -113,6 +103,7 @@ func UpdateContainers(token string) error {
 			if err != nil {
 				logrus.Error("Failed to update container at container remove: ", err)
 				logrus.Error("Attempting to start container anyway")
+				c.Error = err
 			}
 			// Get networking config from old container
 			nw := c.Inspect.NetworkSettings.Networks
@@ -129,6 +120,7 @@ func UpdateContainers(token string) error {
 			resp, err := cli.ContainerCreate(context.Background(), c.Inspect.Config, c.Inspect.HostConfig, nil, nil, c.Inspect.Name)
 			if err != nil {
 				logrus.Error("Failed to update container at container create: ", err)
+				c.Error = err
 				continue
 			}
 
@@ -138,6 +130,7 @@ func UpdateContainers(token string) error {
 				err = cli.NetworkConnect(context.Background(), k, resp.ID, v)
 				if err != nil {
 					logrus.Error("Failed to update container at network connect: ", err)
+					c.Error = err
 				}
 			}
 
@@ -145,6 +138,7 @@ func UpdateContainers(token string) error {
 			err = cli.ContainerStart(context.Background(), resp.ID, types.ContainerStartOptions{})
 			if err != nil {
 				logrus.Error("Failed to update container at container start: ", err)
+				c.Error = err
 				continue
 			}
 
@@ -159,6 +153,26 @@ func UpdateContainers(token string) error {
 			logrus.Debug("Finished updating container")
 		}
 		containers[token] = listCopy
+
+		// Prepare discord's message
+		message := fmt.Sprintf("Updated %d container(s):\n", len(list))
+		for _, c := range list {
+			lbl := labels.MapToGoCDLabels(c.Inspect.Config.Labels)
+			if lbl.Repo == "" {
+				message += fmt.Sprintf("- **%s**", c.Inspect.Name)
+			} else {
+				message += fmt.Sprintf("- **[%s](%s)**", c.Inspect.Name, lbl.Repo)
+			}
+
+			// Error report
+			if c.Error != nil {
+				message += fmt.Sprintf(" (%v)\n", c.Error)
+			} else {
+				message += "\n"
+			}
+		}
+
+		discord.SendMessage(message)
 	}()
 
 	return nil
