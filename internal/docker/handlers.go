@@ -65,6 +65,19 @@ func UpdateContainers(token string) error {
 		listCopy := make([]*Container, len(list))
 		copy(listCopy, list)
 
+		// Prepare discord's message
+		message := fmt.Sprintf("Updating %d container(s):\n", len(list))
+		for _, c := range list {
+			lbl := labels.MapToGoCDLabels(c.Inspect.Config.Labels)
+			if lbl.Repo == "" {
+				message += fmt.Sprintf("- **%s**", c.Inspect.Name)
+			} else {
+				message += fmt.Sprintf("- **[%s](%s)**", c.Inspect.Name, lbl.Repo)
+			}
+		}
+
+		messageID, _ := discord.SendMessage(message)
+
 		for _, c := range list {
 			logrus.Infof("Updating container %s", c.Inspect.Name)
 
@@ -155,7 +168,7 @@ func UpdateContainers(token string) error {
 		containers[token] = listCopy
 
 		// Prepare discord's message
-		message := fmt.Sprintf("Updated %d container(s):\n", len(list))
+		message = fmt.Sprintf("Updated %d container(s):\n", len(list))
 		for _, c := range list {
 			lbl := labels.MapToGoCDLabels(c.Inspect.Config.Labels)
 			if lbl.Repo == "" {
@@ -172,7 +185,7 @@ func UpdateContainers(token string) error {
 			}
 		}
 
-		discord.SendMessage(message)
+		discord.UpdateMessage(messageID, message)
 	}()
 
 	return nil
