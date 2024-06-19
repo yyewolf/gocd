@@ -1,7 +1,6 @@
 package main
 
 import (
-	"gocd/internal/docker"
 	"gocd/web"
 
 	"github.com/labstack/echo/v4"
@@ -10,13 +9,6 @@ import (
 )
 
 func main() {
-	go func() {
-		// Always listen for new events
-		for {
-			docker.StartListener()
-		}
-	}()
-
 	e := echo.New()
 
 	// Use Logrus

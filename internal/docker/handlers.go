@@ -2,13 +2,11 @@ package docker
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"gocd/internal/discord"
 	"gocd/internal/labels"
 	"io"
 	"strings"
-	"sync"
 
 	"github.com/docker/docker/api/types"
 	"github.com/docker/docker/api/types/container"
@@ -23,47 +21,39 @@ type Container struct {
 	Error   error
 }
 
-var mutex sync.Mutex
-var containers = make(map[string][]*Container)
-
-func AddContainer(container *Container) {
-	mutex.Lock()
-	list, ok := containers[container.Labels.Token]
-	if !ok {
-		list = make([]*Container, 0)
-	}
-
-	list = append(list, container)
-	containers[container.Labels.Token] = list
-	mutex.Unlock()
-}
-
-func RemoveContainer(id string) {
-	mutex.Lock()
-	for token, list := range containers {
-		for i, c := range list {
-			if c.ID == id {
-				logrus.Infof("Removing container %s", id)
-				list = append(list[:i], list[i+1:]...)
-				containers[token] = list
-			}
-		}
-	}
-	mutex.Unlock()
-}
-
 func UpdateContainers(token string) error {
-	_, ok := containers[token]
-	if !ok {
-		return errors.New("no containers for token")
+	logrus.Info("Docker client initialized")
+
+	// Fill up containers
+	c, err := cli.ContainerList(context.Background(), types.ContainerListOptions{
+		Filters: filters.NewArgs(filters.Arg("label", "gocd.token="+token)),
+	})
+	if err != nil {
+		logrus.Fatal(err)
+	}
+
+	var containers []*Container
+
+	for _, container := range c {
+		logrus.Infof("Container found: %s", container.ID)
+		labels := labels.MapToGoCDLabels(container.Labels)
+
+		inspect, err := cli.ContainerInspect(context.Background(), container.ID)
+		if err != nil {
+			logrus.Error(err)
+		}
+
+		container := &Container{
+			ID:      container.ID,
+			Labels:  labels,
+			Inspect: inspect,
+		}
+
+		containers = append(containers, container)
 	}
 
 	go func() {
-		mutex.Lock()
-		list := containers[token]
-		defer mutex.Unlock()
-		listCopy := make([]*Container, len(list))
-		copy(listCopy, list)
+		list := containers
 
 		// Prepare discord's message
 		message := fmt.Sprintf("Updating %d container(s):\n", len(list))
@@ -121,13 +111,6 @@ func UpdateContainers(token string) error {
 			// Get networking config from old container
 			nw := c.Inspect.NetworkSettings.Networks
 
-			// Delete current container from listCopy
-			for i, c2 := range listCopy {
-				if c.ID == c2.ID {
-					listCopy = append(listCopy[:i], listCopy[i+1:]...)
-				}
-			}
-
 			logrus.Debug("Creating new container")
 			// Create new container
 			resp, err := cli.ContainerCreate(context.Background(), c.Inspect.Config, c.Inspect.HostConfig, nil, nil, c.Inspect.Name)
@@ -165,7 +148,6 @@ func UpdateContainers(token string) error {
 			}
 			logrus.Debug("Finished updating container")
 		}
-		containers[token] = listCopy
 
 		// Prepare discord's message
 		message = fmt.Sprintf("Updated %d container(s):\n", len(list))
