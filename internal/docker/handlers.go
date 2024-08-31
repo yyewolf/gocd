@@ -71,8 +71,15 @@ func UpdateContainers(token string) error {
 		for _, c := range list {
 			logrus.Infof("Updating container %s", c.Inspect.Name)
 
+			var pullOptions types.ImagePullOptions
+			if c.Labels.GitlabToken != "" {
+				pullOptions = types.ImagePullOptions{
+					RegistryAuth: c.Labels.GitlabToken,
+				}
+			}
+
 			// Pull image, delete container, create new container
-			out, err := cli.ImagePull(context.Background(), c.Inspect.Config.Image, types.ImagePullOptions{})
+			out, err := cli.ImagePull(context.Background(), c.Inspect.Config.Image, pullOptions)
 			if err != nil {
 				logrus.Error("Failed to update container at image pull: ", err)
 				c.Error = err
